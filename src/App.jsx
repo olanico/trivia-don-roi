@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { auth, loginWithGoogle, logout, getUserData, updateUserScore, getLeaderboard, getUserHistory, puedeJugarHoy, marcarBienvenidaVista } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
+import { cargarPreguntasDesdeSheets, validarConfiguracion } from './googleSheets';
 
 const Icons = {
   Trophy: () => <span className="text-3xl">🏆</span>,
@@ -13,7 +14,8 @@ const Icons = {
   Google: () => <span className="text-2xl">🔐</span>
 };
 
-const preguntasPorDia = {
+// Preguntas hardcoded como fallback
+const preguntasPorDiaHardcoded = {
   1: [
     {
       id: 1,
@@ -160,12 +162,12 @@ const preguntasPorDia = {
   ]
 };
 
-// Copiar días para tener contenido
-preguntasPorDia[0] = preguntasPorDia[1];
-preguntasPorDia[3] = preguntasPorDia[1];
-preguntasPorDia[4] = preguntasPorDia[2];
-preguntasPorDia[5] = preguntasPorDia[1];
-preguntasPorDia[6] = preguntasPorDia[2];
+// Copiar días para tener contenido de fallback
+preguntasPorDiaHardcoded[0] = preguntasPorDiaHardcoded[1];
+preguntasPorDiaHardcoded[3] = preguntasPorDiaHardcoded[1];
+preguntasPorDiaHardcoded[4] = preguntasPorDiaHardcoded[2];
+preguntasPorDiaHardcoded[5] = preguntasPorDiaHardcoded[1];
+preguntasPorDiaHardcoded[6] = preguntasPorDiaHardcoded[2];
 
 export default function App() {
   const [pantalla, setPantalla] = useState('loading');
@@ -180,10 +182,30 @@ export default function App() {
   const [cargando, setCargando] = useState(false);
   const [historial, setHistorial] = useState(null);
   const [puedeJugar, setPuedeJugar] = useState(true);
+  const [preguntasPorDia, setPreguntasPorDia] = useState(preguntasPorDiaHardcoded);
   
   // FIX: Usar getDate() para día del mes, no getDay() que es día de la semana
   const diaActual = new Date().getDate() % 7; // Rotar entre 0-6
   const desafiosDiarios = preguntasPorDia[diaActual] || preguntasPorDia[1];
+
+  // Cargar preguntas desde Google Sheets
+  useEffect(() => {
+    const inicializarPreguntas = async () => {
+      if (validarConfiguracion()) {
+        const preguntasDesdeSheets = await cargarPreguntasDesdeSheets();
+        if (preguntasDesdeSheets) {
+          setPreguntasPorDia(preguntasDesdeSheets);
+          console.log('✅ Usando preguntas desde Google Sheets');
+        } else {
+          console.log('⚠️ Usando preguntas hardcodeadas (fallback)');
+        }
+      } else {
+        console.log('ℹ️ Google Sheets no configurado, usando preguntas hardcodeadas');
+      }
+    };
+    
+    inicializarPreguntas();
+  }, []);
 
   // Escuchar cambios de autenticación
   useEffect(() => {
