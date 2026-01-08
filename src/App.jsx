@@ -441,6 +441,15 @@ export default function App() {
             </button>
           </div>
 
+          {/* Botón Conocé a Don Roi */}
+          <button
+            onClick={() => setPantalla('bienvenida')}
+            className="w-full bg-white/10 backdrop-blur-lg rounded-2xl p-3 mb-6 border border-white/20 hover:bg-white/20 transition-colors flex items-center justify-center gap-2"
+          >
+            <span className="text-2xl">🤓</span>
+            <span className="text-white font-semibold text-sm">Conocé a Don Roi</span>
+          </button>
+
           <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-6 mb-6 border border-white/20">
             <div className="grid grid-cols-3 gap-4 mb-4">
               <div className="text-center">
@@ -489,7 +498,7 @@ export default function App() {
               </div>
               <div>
                 <h2 className="text-white font-bold text-xl">Desafío Diario</h2>
-                <p className="text-orange-100 text-sm">5 preguntas • 3-5 min • 80 puntos</p>
+                <p className="text-orange-100 text-sm">Respondé como Don Roi pensaría 🧠</p>
               </div>
             </div>
 
