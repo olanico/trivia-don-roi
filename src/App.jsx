@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { auth, loginWithGoogle, logout, getUserData, updateUserScore, getLeaderboard, getUserHistory, puedeJugarHoy } from './firebase';
+import { auth, loginWithGoogle, logout, getUserData, updateUserScore, getLeaderboard, getUserHistory, puedeJugarHoy, marcarBienvenidaVista } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
 const Icons = {
@@ -181,7 +181,8 @@ export default function App() {
   const [historial, setHistorial] = useState(null);
   const [puedeJugar, setPuedeJugar] = useState(true);
   
-  const diaActual = new Date().getDay();
+  // FIX: Usar getDate() para día del mes, no getDay() que es día de la semana
+  const diaActual = new Date().getDate() % 7; // Rotar entre 0-6
   const desafiosDiarios = preguntasPorDia[diaActual] || preguntasPorDia[1];
 
   // Escuchar cambios de autenticación
@@ -189,14 +190,7 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
-        const userData = await cargarDatosUsuario(currentUser.uid);
-        
-        // Si es primera vez (sin historial), mostrar bienvenida
-        if (!userData || userData.partidasJugadas === 0) {
-          setPantalla('bienvenida');
-        } else {
-          setPantalla('home');
-        }
+        await cargarDatosUsuario(currentUser.uid);
       } else {
         setUser(null);
         setPantalla('login');
@@ -208,14 +202,26 @@ export default function App() {
 
   const cargarDatosUsuario = async (userId) => {
     try {
+      // Verificar si puede jugar hoy
+      const estadoJuego = await puedeJugarHoy(userId);
+      setPuedeJugar(estadoJuego.puedeJugar);
+      
+      // Cargar datos del usuario
       const userData = await getUserHistory(userId);
       if (userData) {
         setPuntosAcumulados(userData.puntosAcumulados);
         setRacha(userData.racha);
         setHistorial(userData);
-        setPuedeJugar(puedeJugarHoy(userData));
+        
+        // Si es primera vez Y no vio la bienvenida, mostrarla
+        if (estadoJuego.esNuevo || (!userData.bienvenidaVista && userData.partidasJugadas === 0)) {
+          setPantalla('bienvenida');
+        } else {
+          setPantalla('home');
+        }
       } else {
-        setPuedeJugar(true);
+        // Usuario totalmente nuevo
+        setPantalla('bienvenida');
       }
       
       const leaderboardData = await getLeaderboard(10);
@@ -224,6 +230,7 @@ export default function App() {
       return userData;
     } catch (error) {
       console.error('Error cargando datos:', error);
+      setPantalla('home');
       return null;
     }
   };
@@ -277,6 +284,9 @@ export default function App() {
       setPuntosAcumulados(userData.puntosAcumulados);
       setRacha(userData.racha);
       
+      // Después de guardar, marcar que ya no puede jugar hoy
+      setPuedeJugar(false);
+      
       const leaderboardData = await getLeaderboard(10);
       setLeaderboard(leaderboardData);
     } catch (error) {
@@ -293,6 +303,13 @@ export default function App() {
     setRespuestaSeleccionada(null);
     setMostrarExplicacion(false);
     setPuntosHoy(0);
+  };
+  
+  const irAHome = async () => {
+    if (user) {
+      await marcarBienvenidaVista(user.uid);
+    }
+    setPantalla('home');
   };
 
   if (pantalla === 'loading') {
@@ -362,7 +379,7 @@ export default function App() {
               <div className="bg-purple-50 rounded-xl p-4 border-l-4 border-purple-500">
                 <p className="font-semibold text-purple-900 mb-2">🎯 Su filosofía (extrema):</p>
                 <ul className="space-y-2 text-sm">
-                  <li>💎 <strong>Patrimonio > Todo</strong> (incluso tu cumpleaños)</li>
+                  <li>💎 <strong>Patrimonio &gt; Todo</strong> (incluso tu cumpleaños)</li>
                   <li>🚫 Gastos sin necesidad = pecado mortal</li>
                   <li>📈 Si no genera retorno, no existe</li>
                   <li>🏃 Lujos = "pasivos que te empobrecen"</li>
@@ -379,13 +396,13 @@ export default function App() {
 
               <div className="bg-yellow-50 rounded-xl p-4 border-l-4 border-yellow-500">
                 <p className="text-sm">
-                  <strong className="text-yellow-900">💡 Disclaimer:</strong> Don Roi es una caricatura. En la vida real, balance > extremismo. Pero conocer este mindset te ayuda a tomar mejores decisiones.
+                  <strong className="text-yellow-900">💡 Disclaimer:</strong> Don Roi es una caricatura. En la vida real, balance &gt; extremismo. Pero conocer este mindset te ayuda a tomar mejores decisiones.
                 </p>
               </div>
             </div>
 
             <button
-              onClick={() => setPantalla('home')}
+              onClick={irAHome}
               className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold py-4 rounded-xl shadow-lg hover:scale-105 transition-transform"
             >
               Entendido, ¡vamos! 🚀

@@ -50,6 +50,52 @@ export const saveUserData = async (userId, data) => {
   await setDoc(doc(db, 'users', userId), data, { merge: true });
 };
 
+// NUEVA FUNCIÓN: Verificar si el usuario puede jugar hoy
+export const puedeJugarHoy = async (userId) => {
+  try {
+    const userDoc = await getDoc(doc(db, 'users', userId));
+    
+    if (!userDoc.exists()) {
+      // Usuario nuevo, puede jugar
+      return { puedeJugar: true, esNuevo: true };
+    }
+    
+    const userData = userDoc.data();
+    const ultimaPartida = userData.ultimaPartida;
+    
+    if (!ultimaPartida) {
+      // No tiene partidas registradas, puede jugar
+      return { puedeJugar: true, esNuevo: false };
+    }
+    
+    // Obtener fecha de hoy en formato YYYY-MM-DD
+    const hoy = new Date().toISOString().split('T')[0];
+    const fechaUltimaPartida = new Date(ultimaPartida).toISOString().split('T')[0];
+    
+    if (fechaUltimaPartida === hoy) {
+      // Ya jugó hoy
+      return { puedeJugar: false, esNuevo: false };
+    }
+    
+    // No jugó hoy, puede jugar
+    return { puedeJugar: true, esNuevo: false };
+    
+  } catch (error) {
+    console.error("Error verificando si puede jugar:", error);
+    // En caso de error, permitir jugar
+    return { puedeJugar: true, esNuevo: false };
+  }
+};
+
+// FUNCIÓN ACTUALIZADA: Marcar que el usuario vio la bienvenida
+export const marcarBienvenidaVista = async (userId) => {
+  const userRef = doc(db, 'users', userId);
+  await setDoc(userRef, {
+    bienvenidaVista: true,
+    fechaRegistro: new Date().toISOString()
+  }, { merge: true });
+};
+
 export const updateUserScore = async (userId, nombre, puntosGanados) => {
   const userRef = doc(db, 'users', userId);
   const leaderboardRef = doc(db, 'leaderboard', userId);
@@ -63,6 +109,23 @@ export const updateUserScore = async (userId, nombre, puntosGanados) => {
     ultimaPartida: null
   };
 
+  // Calcular nueva racha
+  let nuevaRacha = currentData.racha || 1;
+  if (currentData.ultimaPartida) {
+    const ayer = new Date();
+    ayer.setDate(ayer.getDate() - 1);
+    const ayerStr = ayer.toISOString().split('T')[0];
+    const fechaUltimaStr = new Date(currentData.ultimaPartida).toISOString().split('T')[0];
+    
+    if (fechaUltimaStr === ayerStr) {
+      // Jugó ayer, incrementar racha
+      nuevaRacha = (currentData.racha || 1) + 1;
+    } else if (fechaUltimaStr !== new Date().toISOString().split('T')[0]) {
+      // No jugó ayer, resetear racha
+      nuevaRacha = 1;
+    }
+  }
+
   const nuevoPuntaje = (currentData.puntosAcumulados || 0) + puntosGanados;
   const nivel = nuevoPuntaje < 100 ? 'Principiante' : 
                 nuevoPuntaje < 300 ? 'Ahorrador' : 
@@ -74,7 +137,7 @@ export const updateUserScore = async (userId, nombre, puntosGanados) => {
     nivel,
     partidasJugadas: (currentData.partidasJugadas || 0) + 1,
     ultimaPartida: new Date().toISOString(),
-    racha: currentData.racha || 1
+    racha: nuevaRacha
   };
 
   // Guardar en users
@@ -115,7 +178,8 @@ export const getUserHistory = async (userId) => {
       partidasJugadas: data.partidasJugadas || 0,
       racha: data.racha || 1,
       nivel: data.nivel || 'Principiante',
-      ultimaPartida: data.ultimaPartida || null
+      ultimaPartida: data.ultimaPartida || null,
+      bienvenidaVista: data.bienvenidaVista || false
     };
   }
   return null;
